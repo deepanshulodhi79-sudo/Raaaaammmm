@@ -6,7 +6,275 @@
   <title>Mail Sender</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0d0f14;
+  --surface: #161b26;
+  --surface2: #1e2535;
+  --border: #2a3348;
+  --accent: #4f8ef7;
+  --accent2: #a78bfa;
+  --text: #e8eaf0;
+  --muted: #7a8399;
+  --success: #34d399;
+  --error: #f87171;
+  --radius: 12px;
+  --font: 'Inter', system-ui, sans-serif;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+.bg-grid {
+  position: fixed;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(79,142,247,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,142,247,0.04) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* HEADER */
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 32px;
+  background: rgba(13,15,20,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+}
+
+.logo { display: flex; align-items: center; gap: 10px; }
+.logo-icon { font-size: 22px; }
+.logo-text { font-size: 18px; font-weight: 700; letter-spacing: -0.5px; }
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 6px 14px;
+  border-radius: 20px;
+}
+.status-badge.online { color: var(--success); border-color: rgba(52,211,153,0.3); }
+.status-badge.offline { color: var(--error); border-color: rgba(248,113,113,0.3); }
+
+.dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--muted);
+  animation: pulse 2s infinite;
+}
+.status-badge.online .dot { background: var(--success); }
+.status-badge.offline .dot { background: var(--error); animation: none; }
+
+@keyframes pulse {
+  0%,100% { opacity:1; } 50% { opacity:0.3; }
+}
+
+/* MAIN */
+.main {
+  position: relative;
+  z-index: 1;
+  max-width: 680px;
+  margin: 0 auto;
+  padding: 48px 20px 80px;
+}
+
+.hero { text-align: center; margin-bottom: 36px; }
+.hero-title {
+  font-size: clamp(28px, 5vw, 42px);
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -1px;
+}
+.accent {
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+.hero-sub { color: var(--muted); margin-top: 12px; font-size: 15px; }
+
+/* TABS */
+.tabs {
+  display: flex;
+  gap: 4px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px;
+  margin-bottom: 20px;
+}
+.tab {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.tab.active {
+  background: var(--surface2);
+  color: var(--text);
+  box-shadow: 0 1px 6px rgba(0,0,0,0.3);
+}
+
+/* CARD */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.section-label {
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--muted);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border);
+  margin-top: 4px;
+}
+
+.row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 500px) { .row-2 { grid-template-columns: 1fr; } }
+
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 13px; font-weight: 500; color: var(--muted); }
+
+input, textarea {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 9px;
+  padding: 11px 14px;
+  font-size: 14px;
+  font-family: var(--font);
+  transition: border-color 0.2s, box-shadow 0.2s;
+  resize: vertical;
+  outline: none;
+}
+input:focus, textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(79,142,247,0.15);
+}
+input::placeholder, textarea::placeholder { color: #3d4a60; }
+
+.pw-wrap { position: relative; }
+.pw-wrap input { width: 100%; padding-right: 44px; }
+.pw-toggle {
+  position: absolute; right: 10px; top: 50%;
+  transform: translateY(-50%);
+  background: none; border: none;
+  cursor: pointer; font-size: 16px; padding: 4px;
+}
+
+.hint { font-size: 12px; color: #4a5568; }
+
+/* SEND BUTTON */
+.btn-send {
+  margin-top: 8px;
+  padding: 14px;
+  background: linear-gradient(135deg, var(--accent), #3b6fd4);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s, transform 0.1s;
+  font-family: var(--font);
+}
+.btn-send:hover { opacity: 0.9; transform: translateY(-1px); }
+.btn-send:active { transform: translateY(0); }
+.btn-send:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+/* RESULT */
+.result {
+  margin-top: 16px;
+  padding: 16px 20px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  font-weight: 500;
+  animation: fadeIn 0.3s ease;
+}
+.result.success {
+  background: rgba(52,211,153,0.1);
+  border: 1px solid rgba(52,211,153,0.3);
+  color: var(--success);
+}
+.result.error {
+  background: rgba(248,113,113,0.1);
+  border: 1px solid rgba(248,113,113,0.3);
+  color: var(--error);
+}
+
+/* BULK RESULTS */
+.bulk-results {
+  margin-top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  animation: fadeIn 0.3s ease;
+}
+.bulk-header {
+  padding: 12px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+}
+.bulk-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  font-size: 13px;
+  border-bottom: 1px solid var(--border);
+}
+.bulk-item:last-child { border-bottom: none; }
+.bulk-item .email { color: var(--muted); }
+.bulk-item .ok { color: var(--success); }
+.bulk-item .fail { color: var(--error); font-size: 12px; }
+
+@keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform:none; } }
+
+/* FOOTER */
+.footer {
+  position: relative; z-index: 1;
+  text-align: center;
+  padding: 24px;
+  font-size: 13px;
+  color: #2d3748;
+}
+  </style>
 </head>
 <body>
   <div class="bg-grid"></div>
@@ -27,14 +295,12 @@
       <p class="hero-sub">Apne SMTP se directly email bhejo — koi third-party service nahi</p>
     </div>
 
-    <!-- Tab switcher -->
     <div class="tabs">
       <button class="tab active" data-tab="single">Single Email</button>
       <button class="tab" data-tab="bulk">Bulk Email</button>
     </div>
 
     <div class="card" id="formCard">
-      <!-- SMTP Config -->
       <div class="section-label">📡 SMTP Settings</div>
       <div class="row-2">
         <div class="field">
@@ -47,7 +313,6 @@
         </div>
       </div>
 
-      <!-- Sender Info -->
       <div class="section-label">👤 Aapki Details</div>
       <div class="row-2">
         <div class="field">
@@ -68,11 +333,10 @@
         <span class="hint">Gmail ke liye: Settings → 2FA → App Passwords se banao</span>
       </div>
 
-      <!-- Single Email Fields -->
       <div id="singleFields">
         <div class="section-label">📨 Email Details</div>
         <div class="field">
-          <label>Recipient Email (Kisko bhejhna hai)</label>
+          <label>Recipient Email (Kisko bhejna hai)</label>
           <input type="email" id="toEmail" placeholder="unka@email.com" />
         </div>
         <div class="field">
@@ -85,7 +349,6 @@
         </div>
       </div>
 
-      <!-- Bulk Email Fields -->
       <div id="bulkFields" style="display:none">
         <div class="section-label">📨 Bulk Email Details</div>
         <div class="field">
@@ -107,10 +370,7 @@
       </button>
     </div>
 
-    <!-- Result area -->
     <div class="result" id="result" style="display:none"></div>
-
-    <!-- Bulk results -->
     <div class="bulk-results" id="bulkResults" style="display:none"></div>
   </main>
 
