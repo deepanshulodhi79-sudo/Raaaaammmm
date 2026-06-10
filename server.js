@@ -31,23 +31,6 @@ function createTransporter(senderEmail, senderPassword, smtpHost, smtpPort) {
   });
 }
 
-function buildMail(from, senderEmail, senderName, to, subject, message) {
-  return {
-    from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
-    to,
-    subject,
-    replyTo: senderEmail,  // reply seedha sender ko
-    text: message,
-    html: `<div style="font-family:Arial,sans-serif;line-height:1.7;font-size:15px">${message.replace(/\n/g, "<br>")}</div>`,
-    headers: {
-      // Gmail jaisa dikhne ke liye — spam score kam karta hai
-      "X-Mailer": "Microsoft Outlook 16.0",
-      "X-Priority": "3",
-      "MIME-Version": "1.0",
-    },
-  };
-}
-
 // Single email
 app.post("/send", async (req, res) => {
   const { senderEmail, senderPassword, smtpHost, smtpPort, toEmail, subject, message, senderName } = req.body;
@@ -59,12 +42,15 @@ app.post("/send", async (req, res) => {
   const transporter = createTransporter(senderEmail, senderPassword, smtpHost, smtpPort);
 
   try {
-    const info = await transporter.sendMail(
-      buildMail(senderEmail, senderEmail, senderName, toEmail, subject, message)
-    );
+    const info = await transporter.sendMail({
+      from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
+      replyTo: senderEmail,
+      to: toEmail,
+      subject,
+      text: message,
+    });
     res.json({ success: true, message: "Email bhej diya gaya! ✅", messageId: info.messageId });
   } catch (err) {
-    console.error("Send error:", err.message);
     res.status(500).json({ success: false, error: err.message });
   } finally {
     transporter.close();
@@ -90,9 +76,13 @@ app.post("/send-bulk", async (req, res) => {
   for (const email of emailList) {
     const transporter = createTransporter(senderEmail, senderPassword, smtpHost, smtpPort);
     try {
-      await transporter.sendMail(
-        buildMail(senderEmail, senderEmail, senderName, email, subject, message)
-      );
+      await transporter.sendMail({
+        from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
+        replyTo: senderEmail,
+        to: email,
+        subject,
+        text: message,
+      });
       results.push({ email, status: "success" });
     } catch (err) {
       results.push({ email, status: "failed", error: err.message });
