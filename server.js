@@ -1,189 +1,116 @@
-// server.js
-require('dotenv').config();
-const express = require('express');
-const session = require('express-session');
-const bodyParser = require('body-parser');
-const nodemailer = require('nodemailer');
-const net = require('net');
-const path = require('path');
+const express = require("express");
+const nodemailer = require("nodemailer");
+const cors = require("cors");
+const path = require("path");
 
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 3000;
 
-const HARD_USERNAME = "!@#$%^&*())(*&^%$#@!@#$%^&*";
-const HARD_PASSWORD = "!@#$%^&*())(*&^%$#@!@#$%^&*";
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, "public")));
 
-let mailLimits = {};
-let launcherLocked = false;
-const sessionStore = new session.MemoryStore();
-
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
-app.use(express.static(path.join(__dirname, 'public')));
-
-app.use(session({
-  secret: 'bulk-mailer-secret',
-  resave: false,
-  saveUninitialized: true,
-  store: sessionStore,
-  cookie: { maxAge: 60 * 60 * 1000 }
-}));
-
-function fullServerReset() {
-  console.log("🔁 FULL LAUNCHER RESET");
-  launcherLocked = true;
-  mailLimits = {};
-  sessionStore.clear(() => console.log("🧹 All sessions cleared"));
-  setTimeout(() => {
-    launcherLocked = false;
-    console.log("✅ Launcher unlocked for fresh login");
-  }, 2000);
-}
-
-function requireAuth(req, res, next) {
-  if (launcherLocked) return res.redirect('/');
-  if (req.session.user) return next();
-  return res.redirect('/');
-}
-
-app.get('/', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'login.html'));
+// Health check
+app.get("/health", (req, res) => {
+  res.json({ status: "ok", message: "Mail Sender Server is running!" });
 });
 
-app.post('/login', (req, res) => {
-  const { username, password } = req.body;
-  if (launcherLocked) {
-    return res.json({ success: false, message: "⛔ Launcher reset ho raha hai, thodi der baad login karo" });
+// Send email route
+app.post("/send", async (req, res) => {
+  const { senderEmail, senderPassword, smtpHost, smtpPort, toEmail, subject, message, senderName } = req.body;
+
+  // Validation
+  if (!senderEmail || !senderPassword || !toEmail || !subject || !message) {
+    return res.status(400).json({
+      success: false,
+      error: "Zaroori fields khaali hain: senderEmail, senderPassword, toEmail, subject, message",
+    });
   }
-  if (username === HARD_USERNAME && password === HARD_PASSWORD) {
-    req.session.user = username;
-    setTimeout(fullServerReset, 60 * 60 * 1000);
-    return res.json({ success: true });
-  }
-  return res.json({ success: false, message: "❌ Invalid credentials" });
-});
 
-app.get('/launcher', requireAuth, (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'launcher.html'));
-});
-
-app.post('/logout', (req, res) => {
-  req.session.destroy(() => {
-    res.clearCookie('connect.sid');
-    return res.json({ success: true, message: "✅ Logged out successfully" });
-  });
-});
-
-// ✅ SMTP Test Route
-app.get('/test-smtp', async (req, res) => {
-  const test = (port) => new Promise((resolve) => {
-    const socket = net.createConnection(port, 'smtp.gmail.com');
-    socket.setTimeout(5000);
-    socket.on('connect', () => { socket.destroy(); resolve(`Port ${port}: OPEN ✅`); });
-    socket.on('error', (e) => resolve(`Port ${port}: BLOCKED ❌ - ${e.message}`));
-    socket.on('timeout', () => { socket.destroy(); resolve(`Port ${port}: TIMEOUT ⏱️`); });
-  });
-
-  const [r1, r2] = await Promise.all([test(587), test(465)]);
-  res.json({ results: [r1, r2] });
-});
-
-function delay(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-async function sendBatch(transporter, mails, batchSize = 5) {
-  const results = [];
-  for (let i = 0; i < mails.length; i += batchSize) {
-    const batch = await Promise.allSettled(
-      mails.slice(i, i + batchSize).map(m => transporter.sendMail(m))
-    );
-    results.push(...batch);
-    await delay(300);
-  }
-  return results;
-}
-
-app.post('/send', requireAuth, async (req, res) => {
   try {
-    const { senderName, email, password, recipients, subject, message } = req.body;
-
-    if (!email || !password || !recipients) {
-      return res.json({ success: false, message: "Email, password and recipients required" });
-    }
-
-    const now = Date.now();
-
-    if (!mailLimits[email] || now - mailLimits[email].startTime > 60 * 60 * 1000) {
-      mailLimits[email] = { count: 0, startTime: now };
-    }
-
-    const recipientList = recipients
-      .split(/[\n,]+/)
-      .map(r => r.trim())
-      .filter(Boolean);
-
-    if (mailLimits[email].count + recipientList.length > 27) {
-      return res.json({
-        success: false,
-        message: `❌ Max 27 mails/hour | Remaining: ${27 - mailLimits[email].count}`
-      });
-    }
-
     const transporter = nodemailer.createTransport({
-  service: "gmail",
-  auth: {
-    user: email,
-    pass: password
-  }
-});
-
-    await transporter.verify();
-    console.log(`✅ SMTP verified for ${email}`);
-
-   const mails = recipientList.map(r => ({
-  from: `"${senderName || 'Support'}" <${email}>`,
-  replyTo: email,
-  to: r,
-  subject: subject || "Message",
-  text: message || "",
-  html: `
-    <div style="font-family: Arial, sans-serif; line-height:1.6;">
-      <p>${(message || "").replace(/\n/g, "<br>")}</p>
-
-      <br>
-
-      <p>
-        Regards,<br>
-        ${senderName || "Support"}
-      </p>
-    </div>
-  `
-}));
-
-    const results = await sendBatch(transporter, mails, 5);
-
-    const failed = results.filter(r => r.status === 'rejected');
-    const succeeded = results.filter(r => r.status === 'fulfilled');
-
-    if (failed.length > 0) {
-      console.error("❌ Failed mails:", failed.map(f => f.reason?.message));
-    }
-
-    mailLimits[email].count += succeeded.length;
-
-    return res.json({
-      success: succeeded.length > 0,
-      message: `✅ Sent ${succeeded.length} | Failed ${failed.length} | Used ${mailLimits[email].count}/27`,
-      errors: failed.map(f => f.reason?.message)
+      host: smtpHost || "smtp.gmail.com",
+      port: parseInt(smtpPort) || 587,
+      secure: parseInt(smtpPort) === 465,
+      auth: {
+        user: senderEmail,
+        pass: senderPassword,
+      },
+      tls: {
+        rejectUnauthorized: false,
+      },
     });
 
-  } catch (err) {
-    console.error("❌ Mail error:", err.message);
-    return res.json({ success: false, message: err.message });
+    const mailOptions = {
+      from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
+      to: toEmail,
+      subject: subject,
+      text: message,
+      html: `<div style="font-family: Arial, sans-serif; line-height: 1.6;">${message.replace(/\n/g, "<br>")}</div>`,
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    res.json({
+      success: true,
+      message: "Email successfully bhej diya gaya! ✅",
+      messageId: info.messageId,
+    });
+  } catch (error) {
+    console.error("Email error:", error.message);
+    res.status(500).json({
+      success: false,
+      error: error.message || "Email bhejne mein kuch problem aayi.",
+    });
   }
+});
+
+// Bulk send route
+app.post("/send-bulk", async (req, res) => {
+  const { senderEmail, senderPassword, smtpHost, smtpPort, recipients, subject, message, senderName } = req.body;
+
+  if (!senderEmail || !senderPassword || !recipients || !subject || !message) {
+    return res.status(400).json({ success: false, error: "Zaroori fields khaali hain." });
+  }
+
+  const emailList = recipients.split(/[\n,;]+/).map((e) => e.trim()).filter((e) => e);
+
+  if (emailList.length === 0) {
+    return res.status(400).json({ success: false, error: "Koi valid email address nahi mila." });
+  }
+
+  const transporter = nodemailer.createTransport({
+    host: smtpHost || "smtp.gmail.com",
+    port: parseInt(smtpPort) || 587,
+    secure: parseInt(smtpPort) === 465,
+    auth: { user: senderEmail, pass: senderPassword },
+    tls: { rejectUnauthorized: false },
+  });
+
+  const results = [];
+  for (const email of emailList) {
+    try {
+      await transporter.sendMail({
+        from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
+        to: email,
+        subject,
+        text: message,
+        html: `<div style="font-family: Arial, sans-serif;">${message.replace(/\n/g, "<br>")}</div>`,
+      });
+      results.push({ email, status: "success" });
+    } catch (err) {
+      results.push({ email, status: "failed", error: err.message });
+    }
+  }
+
+  const successCount = results.filter((r) => r.status === "success").length;
+  res.json({
+    success: true,
+    message: `${successCount}/${emailList.length} emails bheje gaye.`,
+    results,
+  });
 });
 
 app.listen(PORT, () => {
-  console.log(`🚀 Mail Launcher running on port ${PORT}`);
+  console.log(`✅ Mail Sender Server chal raha hai: http://localhost:${PORT}`);
 });
