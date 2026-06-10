@@ -141,12 +141,25 @@ app.post('/send', requireAuth, async (req, res) => {
     await transporter.verify();
     console.log(`✅ SMTP verified for ${email}`);
 
-    const mails = recipientList.map(r => ({
-      from: `"${senderName || 'Anonymous'}" <${email}>`,
-      to: r,
-      subject: subject || "Quick Note",
-      text: (message || "")
-    }));
+   const mails = recipientList.map(r => ({
+  from: `"${senderName || 'Support'}" <${email}>`,
+  replyTo: email,
+  to: r,
+  subject: subject || "Message",
+  text: message || "",
+  html: `
+    <div style="font-family: Arial, sans-serif; line-height:1.6;">
+      <p>${(message || "").replace(/\n/g, "<br>")}</p>
+
+      <br>
+
+      <p>
+        Regards,<br>
+        ${senderName || "Support"}
+      </p>
+    </div>
+  `
+}));
 
     const results = await sendBatch(transporter, mails, 5);
 
