@@ -1,75 +1,123 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="hi">
 <head>
-<meta charset="UTF-8">
-<title>Fast Mail Launcher</title>
-<link rel="stylesheet" href="style.css">
-
-<style>
-  /* Optional UX hint */
-  .logout-hint {
-    font-size: 12px;
-    color: #888;
-    margin-top: 4px;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mail Sender</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
 </head>
-
 <body>
-<div class="form-grid">
-  <h2>📧 Fast Mail Launcher</h2>
+  <div class="bg-grid"></div>
 
-  <div class="grid-row">
-    <input id="senderName" placeholder="Sender Name">
-    <input id="email" placeholder="Your Gmail">
-  </div>
-
-  <div class="grid-row">
-    <input id="pass" type="password" placeholder="App Password">
-    <input id="subject" placeholder="Subject">
-  </div>
-
-  <div class="grid-row">
-    <textarea id="message" placeholder="Message Body"></textarea>
-    <textarea id="recipients" placeholder="Recipients (comma or newline)"></textarea>
-  </div>
-
-  <div class="grid-row">
-    <button id="sendBtn">Send All</button>
-
-    <!-- 🔓 DOUBLE CLICK LOGOUT BUTTON -->
-    <div>
-      <button id="logoutBtn" title="Double click to logout">Logout</button>
-      <div class="logout-hint">Double-click to logout</div>
+  <header class="header">
+    <div class="logo">
+      <span class="logo-icon">✉️</span>
+      <span class="logo-text">MailSender</span>
     </div>
-  </div>
+    <div class="status-badge" id="statusBadge">
+      <span class="dot"></span> Server se connect ho raha hai...
+    </div>
+  </header>
 
-  <p id="statusMessage"></p>
-</div>
+  <main class="main">
+    <div class="hero">
+      <h1 class="hero-title">Email Bhejo<br /><span class="accent">Seedha aur Asaan</span></h1>
+      <p class="hero-sub">Apne SMTP se directly email bhejo — koi third-party service nahi</p>
+    </div>
 
-<script src="script.js"></script>
+    <!-- Tab switcher -->
+    <div class="tabs">
+      <button class="tab active" data-tab="single">Single Email</button>
+      <button class="tab" data-tab="bulk">Bulk Email</button>
+    </div>
 
-<script>
-/* ===============================
-   DOUBLE-CLICK LOGOUT LOGIC
-================================ */
+    <div class="card" id="formCard">
+      <!-- SMTP Config -->
+      <div class="section-label">📡 SMTP Settings</div>
+      <div class="row-2">
+        <div class="field">
+          <label>SMTP Host</label>
+          <input type="text" id="smtpHost" placeholder="smtp.gmail.com" value="smtp.gmail.com" />
+        </div>
+        <div class="field">
+          <label>Port</label>
+          <input type="number" id="smtpPort" placeholder="587" value="587" />
+        </div>
+      </div>
 
-const logoutBtn = document.getElementById("logoutBtn");
+      <!-- Sender Info -->
+      <div class="section-label">👤 Aapki Details</div>
+      <div class="row-2">
+        <div class="field">
+          <label>Aapka Naam (optional)</label>
+          <input type="text" id="senderName" placeholder="Rahul Sharma" />
+        </div>
+        <div class="field">
+          <label>Aapka Email</label>
+          <input type="email" id="senderEmail" placeholder="aap@gmail.com" />
+        </div>
+      </div>
+      <div class="field">
+        <label>App Password / SMTP Password</label>
+        <div class="pw-wrap">
+          <input type="password" id="senderPassword" placeholder="Gmail App Password yahan daalo" />
+          <button class="pw-toggle" onclick="togglePassword()">👁</button>
+        </div>
+        <span class="hint">Gmail ke liye: Settings → 2FA → App Passwords se banao</span>
+      </div>
 
-logoutBtn.addEventListener("dblclick", () => {
-  fetch("/logout", { method: "POST" })
-    .then(res => res.json())
-    .then(data => {
-      alert(data.message);
-      if (data.success) {
-        window.location.href = "/";
-      }
-    })
-    .catch(() => {
-      alert("Logout failed");
-    });
-});
-</script>
+      <!-- Single Email Fields -->
+      <div id="singleFields">
+        <div class="section-label">📨 Email Details</div>
+        <div class="field">
+          <label>Recipient Email (Kisko bhejhna hai)</label>
+          <input type="email" id="toEmail" placeholder="unka@email.com" />
+        </div>
+        <div class="field">
+          <label>Subject</label>
+          <input type="text" id="subject" placeholder="Email ka topic" />
+        </div>
+        <div class="field">
+          <label>Message</label>
+          <textarea id="message" rows="6" placeholder="Apna message yahan likhein..."></textarea>
+        </div>
+      </div>
 
+      <!-- Bulk Email Fields -->
+      <div id="bulkFields" style="display:none">
+        <div class="section-label">📨 Bulk Email Details</div>
+        <div class="field">
+          <label>Recipients (ek line mein ek email, ya comma se alag karo)</label>
+          <textarea id="recipients" rows="4" placeholder="email1@gmail.com&#10;email2@yahoo.com&#10;email3@outlook.com"></textarea>
+        </div>
+        <div class="field">
+          <label>Subject</label>
+          <input type="text" id="bulkSubject" placeholder="Email ka topic" />
+        </div>
+        <div class="field">
+          <label>Message</label>
+          <textarea id="bulkMessage" rows="6" placeholder="Apna message yahan likhein..."></textarea>
+        </div>
+      </div>
+
+      <button class="btn-send" id="sendBtn" onclick="sendEmail()">
+        <span id="btnText">Email Bhejo 🚀</span>
+      </button>
+    </div>
+
+    <!-- Result area -->
+    <div class="result" id="result" style="display:none"></div>
+
+    <!-- Bulk results -->
+    <div class="bulk-results" id="bulkResults" style="display:none"></div>
+  </main>
+
+  <footer class="footer">
+    Made with ❤️ — Northflank pe host kiya gaya
+  </footer>
+
+  <script src="script.js"></script>
 </body>
 </html>
