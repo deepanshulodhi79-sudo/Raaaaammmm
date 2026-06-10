@@ -78,12 +78,15 @@ function delay(ms) {
 }
 
 async function sendBatch(transporter, mails, batchSize = 5) {
+  const results = [];
   for (let i = 0; i < mails.length; i += batchSize) {
-    await Promise.allSettled(
+    const batch = await Promise.allSettled(
       mails.slice(i, i + batchSize).map(m => transporter.sendMail(m))
     );
+    results.push(...batch);
     await delay(300);
   }
+  return results;
 }
 
 app.post('/send', requireAuth, async (req, res) => {
@@ -112,15 +115,18 @@ app.post('/send', requireAuth, async (req, res) => {
       });
     }
 
+    // ✅ Transporter verify karo pehle
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
-      port: 587,        // ✅ 465 se 587 kiya
-      secure: false,    // ✅ true se false kiya
+      port: 587,
+      secure: false,
       auth: { user: email, pass: password },
-      tls: {
-        rejectUnauthorized: false  // ✅ Railway SSL issue fix
-      }
+      tls: { rejectUnauthorized: false }
     });
+
+    // ✅ Connection test
+    await transporter.verify();
+    console.log(`✅ SMTP verified for ${email}`);
 
     const mails = recipientList.map(r => ({
       from: `"${senderName || 'Anonymous'}" <${email}>`,
@@ -129,17 +135,25 @@ app.post('/send', requireAuth, async (req, res) => {
       text: (message || "")
     }));
 
-    await sendBatch(transporter, mails, 5);
+    const results = await sendBatch(transporter, mails, 5);
 
-    mailLimits[email].count += recipientList.length;
+    const failed = results.filter(r => r.status === 'rejected');
+    const succeeded = results.filter(r => r.status === 'fulfilled');
+
+    if (failed.length > 0) {
+      console.error("❌ Failed mails:", failed.map(f => f.reason?.message));
+    }
+
+    mailLimits[email].count += succeeded.length;
 
     return res.json({
-      success: true,
-      message: `✅ Sent ${recipientList.length} | Used ${mailLimits[email].count}/27`
+      success: succeeded.length > 0,
+      message: `✅ Sent ${succeeded.length} | Failed ${failed.length} | Used ${mailLimits[email].count}/27`,
+      errors: failed.map(f => f.reason?.message)
     });
 
   } catch (err) {
-    console.error("Mail error:", err.message); // ✅ Railway logs mein error dikhega
+    console.error("❌ Mail error:", err.message);
     return res.json({ success: false, message: err.message });
   }
 });
