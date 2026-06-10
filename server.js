@@ -131,12 +131,12 @@ app.post('/send', requireAuth, async (req, res) => {
     }
 
     const transporter = nodemailer.createTransport({
-      host: "smtp.gmail.com",
-      port: 587,
-      secure: false,
-      auth: { user: email, pass: password },
-      tls: { rejectUnauthorized: false }
-    });
+  service: "gmail",
+  auth: {
+    user: email,
+    pass: password
+  }
+});
 
     await transporter.verify();
     console.log(`✅ SMTP verified for ${email}`);
