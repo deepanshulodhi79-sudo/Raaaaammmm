@@ -10,67 +10,57 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// Root route
 app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "public", "launcher.html"));
 });
 
-// Health check
 app.get("/health", (req, res) => {
-  res.json({ status: "ok", message: "Mail Sender Server is running!" });
+  res.json({ status: "ok" });
 });
 
-// Send email route
+function createTransporter(senderEmail, senderPassword, smtpHost, smtpPort) {
+  return nodemailer.createTransport({
+    host: smtpHost || "smtp.gmail.com",
+    port: parseInt(smtpPort) || 587,
+    secure: parseInt(smtpPort) === 465,
+    auth: { user: senderEmail, pass: senderPassword },
+    tls: { rejectUnauthorized: false },
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 20000,
+    // pool: false — NAHI use karenge, inbox miss hoti thi
+  });
+}
+
+// Single email
 app.post("/send", async (req, res) => {
   const { senderEmail, senderPassword, smtpHost, smtpPort, toEmail, subject, message, senderName } = req.body;
 
-  // Validation
   if (!senderEmail || !senderPassword || !toEmail || !subject || !message) {
-    return res.status(400).json({
-      success: false,
-      error: "Zaroori fields khaali hain: senderEmail, senderPassword, toEmail, subject, message",
-    });
+    return res.status(400).json({ success: false, error: "Zaroori fields khaali hain." });
   }
 
-  try {
-    const transporter = nodemailer.createTransport({
-      host: smtpHost || "smtp.gmail.com",
-      port: parseInt(smtpPort) || 587,
-      secure: parseInt(smtpPort) === 465,
-      auth: {
-        user: senderEmail,
-        pass: senderPassword,
-      },
-      tls: {
-        rejectUnauthorized: false,
-      },
-    });
+  const transporter = createTransporter(senderEmail, senderPassword, smtpHost, smtpPort);
 
-    const mailOptions = {
+  try {
+    const info = await transporter.sendMail({
       from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
       to: toEmail,
-      subject: subject,
+      subject,
       text: message,
-      html: `<div style="font-family: Arial, sans-serif; line-height: 1.6;">${message.replace(/\n/g, "<br>")}</div>`,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-
-    res.json({
-      success: true,
-      message: "Email successfully bhej diya gaya! ✅",
-      messageId: info.messageId,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6">${message.replace(/\n/g, "<br>")}</div>`,
     });
-  } catch (error) {
-    console.error("Email error:", error.message);
-    res.status(500).json({
-      success: false,
-      error: error.message || "Email bhejne mein kuch problem aayi.",
-    });
+
+    res.json({ success: true, message: "Email bhej diya gaya! ✅", messageId: info.messageId });
+  } catch (err) {
+    console.error("Send error:", err.message);
+    res.status(500).json({ success: false, error: err.message });
+  } finally {
+    transporter.close();
   }
 });
 
-// Bulk send route
+// Bulk email
 app.post("/send-bulk", async (req, res) => {
   const { senderEmail, senderPassword, smtpHost, smtpPort, recipients, subject, message, senderName } = req.body;
 
@@ -78,33 +68,31 @@ app.post("/send-bulk", async (req, res) => {
     return res.status(400).json({ success: false, error: "Zaroori fields khaali hain." });
   }
 
-  const emailList = recipients.split(/[\n,;]+/).map((e) => e.trim()).filter((e) => e);
+  const emailList = recipients.split(/[\n,;]+/).map((e) => e.trim()).filter(Boolean);
 
-  if (emailList.length === 0) {
-    return res.status(400).json({ success: false, error: "Koi valid email address nahi mila." });
+  if (!emailList.length) {
+    return res.status(400).json({ success: false, error: "Koi valid email nahi mila." });
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost || "smtp.gmail.com",
-    port: parseInt(smtpPort) || 587,
-    secure: parseInt(smtpPort) === 465,
-    auth: { user: senderEmail, pass: senderPassword },
-    tls: { rejectUnauthorized: false },
-  });
-
+  const from = senderName ? `"${senderName}" <${senderEmail}>` : senderEmail;
   const results = [];
+
+  // Ek ek karke bhejo — reliable delivery
   for (const email of emailList) {
+    const transporter = createTransporter(senderEmail, senderPassword, smtpHost, smtpPort);
     try {
       await transporter.sendMail({
-        from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
+        from,
         to: email,
         subject,
         text: message,
-        html: `<div style="font-family: Arial, sans-serif;">${message.replace(/\n/g, "<br>")}</div>`,
+        html: `<div style="font-family:Arial,sans-serif">${message.replace(/\n/g, "<br>")}</div>`,
       });
       results.push({ email, status: "success" });
     } catch (err) {
       results.push({ email, status: "failed", error: err.message });
+    } finally {
+      transporter.close();
     }
   }
 
@@ -117,5 +105,5 @@ app.post("/send-bulk", async (req, res) => {
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Mail Sender Server chal raha hai port ${PORT} par`);
+  console.log(`✅ Server chal raha hai port ${PORT} par`);
 });
