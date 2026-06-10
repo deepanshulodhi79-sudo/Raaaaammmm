@@ -28,8 +28,24 @@ function createTransporter(senderEmail, senderPassword, smtpHost, smtpPort) {
     connectionTimeout: 10000,
     greetingTimeout: 10000,
     socketTimeout: 20000,
-    // pool: false — NAHI use karenge, inbox miss hoti thi
   });
+}
+
+function buildMail(from, senderEmail, senderName, to, subject, message) {
+  return {
+    from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
+    to,
+    subject,
+    replyTo: senderEmail,  // reply seedha sender ko
+    text: message,
+    html: `<div style="font-family:Arial,sans-serif;line-height:1.7;font-size:15px">${message.replace(/\n/g, "<br>")}</div>`,
+    headers: {
+      // Gmail jaisa dikhne ke liye — spam score kam karta hai
+      "X-Mailer": "Microsoft Outlook 16.0",
+      "X-Priority": "3",
+      "MIME-Version": "1.0",
+    },
+  };
 }
 
 // Single email
@@ -43,14 +59,9 @@ app.post("/send", async (req, res) => {
   const transporter = createTransporter(senderEmail, senderPassword, smtpHost, smtpPort);
 
   try {
-    const info = await transporter.sendMail({
-      from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
-      to: toEmail,
-      subject,
-      text: message,
-      html: `<div style="font-family:Arial,sans-serif;line-height:1.6">${message.replace(/\n/g, "<br>")}</div>`,
-    });
-
+    const info = await transporter.sendMail(
+      buildMail(senderEmail, senderEmail, senderName, toEmail, subject, message)
+    );
     res.json({ success: true, message: "Email bhej diya gaya! ✅", messageId: info.messageId });
   } catch (err) {
     console.error("Send error:", err.message);
@@ -74,20 +85,14 @@ app.post("/send-bulk", async (req, res) => {
     return res.status(400).json({ success: false, error: "Koi valid email nahi mila." });
   }
 
-  const from = senderName ? `"${senderName}" <${senderEmail}>` : senderEmail;
   const results = [];
 
-  // Ek ek karke bhejo — reliable delivery
   for (const email of emailList) {
     const transporter = createTransporter(senderEmail, senderPassword, smtpHost, smtpPort);
     try {
-      await transporter.sendMail({
-        from,
-        to: email,
-        subject,
-        text: message,
-        html: `<div style="font-family:Arial,sans-serif">${message.replace(/\n/g, "<br>")}</div>`,
-      });
+      await transporter.sendMail(
+        buildMail(senderEmail, senderEmail, senderName, email, subject, message)
+      );
       results.push({ email, status: "success" });
     } catch (err) {
       results.push({ email, status: "failed", error: err.message });
