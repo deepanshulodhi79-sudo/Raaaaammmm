@@ -4,6 +4,7 @@ const express = require('express');
 const session = require('express-session');
 const bodyParser = require('body-parser');
 const nodemailer = require('nodemailer');
+const net = require('net');
 const path = require('path');
 
 const app = express();
@@ -73,6 +74,20 @@ app.post('/logout', (req, res) => {
   });
 });
 
+// ✅ SMTP Test Route
+app.get('/test-smtp', async (req, res) => {
+  const test = (port) => new Promise((resolve) => {
+    const socket = net.createConnection(port, 'smtp.gmail.com');
+    socket.setTimeout(5000);
+    socket.on('connect', () => { socket.destroy(); resolve(`Port ${port}: OPEN ✅`); });
+    socket.on('error', (e) => resolve(`Port ${port}: BLOCKED ❌ - ${e.message}`));
+    socket.on('timeout', () => { socket.destroy(); resolve(`Port ${port}: TIMEOUT ⏱️`); });
+  });
+
+  const [r1, r2] = await Promise.all([test(587), test(465)]);
+  res.json({ results: [r1, r2] });
+});
+
 function delay(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
@@ -115,7 +130,6 @@ app.post('/send', requireAuth, async (req, res) => {
       });
     }
 
-    // ✅ Transporter verify karo pehle
     const transporter = nodemailer.createTransport({
       host: "smtp.gmail.com",
       port: 587,
@@ -124,7 +138,6 @@ app.post('/send', requireAuth, async (req, res) => {
       tls: { rejectUnauthorized: false }
     });
 
-    // ✅ Connection test
     await transporter.verify();
     console.log(`✅ SMTP verified for ${email}`);
 
