@@ -111,6 +111,6 @@ app.post("/send-bulk", async (req, res) => {
   });
 });
 
-app.listen(PORT, () => {
-  console.log(`✅ Mail Sender Server chal raha hai: http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`✅ Mail Sender Server chal raha hai port ${PORT} par`);
 });
