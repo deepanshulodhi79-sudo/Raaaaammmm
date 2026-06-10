@@ -4,6 +4,7 @@
   "description": "Email sender app - Northflank pe host karne ke liye",
   "main": "server.js",
   "scripts": {
+    "build": "npm install --omit=dev",
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
