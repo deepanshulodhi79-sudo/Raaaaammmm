@@ -15,19 +15,9 @@ app.get("/", (req, res) => {
 });
 
 app.get("/health", (req, res) => {
-  res.json({ status: "ok" });
+  res.json({ status: "ok", message: "Mail Sender Server is running!" });
 });
 
-function makeHtml(message) {
-  const lines = message.split("\n").map(line => `<p style="margin:0 0 8px 0;">${line}</p>`).join("");
-  return `
-    <div style="font-family:'Georgia',serif;font-size:15px;line-height:1.8;color:#1a1a1a;max-width:600px;">
-      ${lines}
-    </div>
-  `;
-}
-
-// Single email
 app.post("/send", async (req, res) => {
   const { senderEmail, senderPassword, smtpHost, smtpPort, toEmail, subject, message, senderName } = req.body;
 
@@ -35,32 +25,29 @@ app.post("/send", async (req, res) => {
     return res.status(400).json({ success: false, error: "Zaroori fields khaali hain." });
   }
 
-  const transporter = nodemailer.createTransport({
-    host: smtpHost || "smtp.gmail.com",
-    port: parseInt(smtpPort) || 587,
-    secure: false,
-    auth: { user: senderEmail, pass: senderPassword },
-    tls: { rejectUnauthorized: false },
-  });
-
   try {
-    const info = await transporter.sendMail({
-      from: senderName ? `"${senderName}" <${senderEmail}>` : `<${senderEmail}>`,
-      to: toEmail,
-      replyTo: senderEmail,
-      subject,
-      text: message,
-      html: makeHtml(message),
+    const transporter = nodemailer.createTransport({
+      host: smtpHost || "smtp.gmail.com",
+      port: parseInt(smtpPort) || 587,
+      secure: parseInt(smtpPort) === 465,
+      auth: { user: senderEmail, pass: senderPassword },
+      tls: { rejectUnauthorized: false },
     });
-    res.json({ success: true, message: "Email bhej diya! ✅", messageId: info.messageId });
-  } catch (err) {
-    res.status(500).json({ success: false, error: err.message });
-  } finally {
-    transporter.close();
+
+    const info = await transporter.sendMail({
+      from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
+      to: toEmail,
+      subject: subject,
+      text: message,
+      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;">${message.replace(/\n/g, "<br>")}</div>`,
+    });
+
+    res.json({ success: true, message: "Email successfully bhej diya gaya! ✅", messageId: info.messageId });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
-// Bulk email
 app.post("/send-bulk", async (req, res) => {
   const { senderEmail, senderPassword, smtpHost, smtpPort, recipients, subject, message, senderName } = req.body;
 
@@ -68,50 +55,40 @@ app.post("/send-bulk", async (req, res) => {
     return res.status(400).json({ success: false, error: "Zaroori fields khaali hain." });
   }
 
-  const emailList = recipients.split(/[\n,;]+/).map((e) => e.trim()).filter(Boolean);
+  const emailList = recipients.split(/[\n,;]+/).map((e) => e.trim()).filter((e) => e);
 
-  if (!emailList.length) {
-    return res.status(400).json({ success: false, error: "Koi valid email nahi mila." });
+  if (emailList.length === 0) {
+    return res.status(400).json({ success: false, error: "Koi valid email address nahi mila." });
   }
 
   const transporter = nodemailer.createTransport({
     host: smtpHost || "smtp.gmail.com",
     port: parseInt(smtpPort) || 587,
-    secure: false,
+    secure: parseInt(smtpPort) === 465,
     auth: { user: senderEmail, pass: senderPassword },
     tls: { rejectUnauthorized: false },
   });
 
-  const from = senderName ? `"${senderName}" <${senderEmail}>` : `<${senderEmail}>`;
   const results = [];
-
   for (const email of emailList) {
     try {
       await transporter.sendMail({
-        from,
+        from: senderName ? `"${senderName}" <${senderEmail}>` : senderEmail,
         to: email,
-        replyTo: senderEmail,
         subject,
         text: message,
-        html: makeHtml(message),
+        html: `<div style="font-family:Arial,sans-serif;">${message.replace(/\n/g, "<br>")}</div>`,
       });
       results.push({ email, status: "success" });
-      await new Promise((r) => setTimeout(r, 1000));
     } catch (err) {
       results.push({ email, status: "failed", error: err.message });
     }
   }
 
-  transporter.close();
-
   const successCount = results.filter((r) => r.status === "success").length;
-  res.json({
-    success: true,
-    message: `${successCount}/${emailList.length} emails bheje gaye.`,
-    results,
-  });
+  res.json({ success: true, message: `${successCount}/${emailList.length} emails bheje gaye.`, results });
 });
 
 app.listen(PORT, "0.0.0.0", () => {
-  console.log(`✅ Server running on port ${PORT}`);
+  console.log(`✅ Mail Sender Server chal raha hai port ${PORT} par`);
 });
