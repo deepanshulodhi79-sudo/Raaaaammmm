@@ -39,7 +39,18 @@ app.post("/send", async (req, res) => {
       to: toEmail,
       subject: subject,
       text: message,
-      html: `<div style="font-family:Arial,sans-serif;line-height:1.6;">${message.replace(/\n/g, "<br>")}</div>`,
+      html: `
+    <html>
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600&display=swap" rel="stylesheet">
+      </head>
+      <body style="margin:0;padding:0;">
+        <div style="font-family:'Nunito',Arial,sans-serif;font-size:15px;line-height:1.8;color:#222;max-width:600px;padding:20px;">
+          ${message.replace(/\n/g, "<br>")}
+        </div>
+      </body>
+    </html>
+  `,
     });
 
     res.json({ success: true, message: "Email successfully bhej diya gaya! ✅", messageId: info.messageId });
