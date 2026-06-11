@@ -18,6 +18,10 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok" });
 });
 
+function makeHtml(message) {
+  return `<div style="font-family:Arial,sans-serif;font-size:14px;line-height:1.6;color:#222;">${message.replace(/\n/g, "<br>")}</div>`;
+}
+
 // Single email
 app.post("/send", async (req, res) => {
   const { senderEmail, senderPassword, smtpHost, smtpPort, toEmail, subject, message, senderName } = req.body;
@@ -35,13 +39,13 @@ app.post("/send", async (req, res) => {
   });
 
   try {
-    await transporter.verify();
     const info = await transporter.sendMail({
       from: senderName ? `"${senderName}" <${senderEmail}>` : `<${senderEmail}>`,
       to: toEmail,
       replyTo: senderEmail,
-      subject: subject,
+      subject,
       text: message,
+      html: makeHtml(message),
     });
     res.json({ success: true, message: "Email bhej diya! ✅", messageId: info.messageId });
   } catch (err) {
@@ -84,12 +88,10 @@ app.post("/send-bulk", async (req, res) => {
         replyTo: senderEmail,
         subject,
         text: message,
+        html: makeHtml(message),
       });
       results.push({ email, status: "success" });
-
-      // Gmail rate limit se bachne ke liye 1 sec delay
       await new Promise((r) => setTimeout(r, 1000));
-
     } catch (err) {
       results.push({ email, status: "failed", error: err.message });
     }
